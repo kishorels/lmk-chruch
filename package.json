@@ -1,0 +1,35 @@
+{
+  "name": "lmk-church",
+  "version": "1.0.0",
+  "description": "Church worship presentation software for song lyrics and bible verses",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "electron": "electron .",
+    "start": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
+  },
+  "keywords": [
+    "church",
+    "worship",
+    "presentation",
+    "lyrics",
+    "bible"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^8.2.2",
+    "electron": "30.5.1",
+    "electron-rebuild": "^3.2.9",
+    "vite": "^7.3.0",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.1.2",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  }
+}
