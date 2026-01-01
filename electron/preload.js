@@ -40,4 +40,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     addVerse: (verse) => ipcRenderer.invoke("add-verse", verse),
     updateVerse: (id, verse) => ipcRenderer.invoke("update-verse", { id, verse }),
     deleteVerse: (id) => ipcRenderer.invoke("delete-verse", id),
+
+    // Bible - using local Tamil Bible database
+    getAllBibleBooks: () => ipcRenderer.invoke("get-all-bible-books"),
+    getBibleBook: (id) => ipcRenderer.invoke("get-bible-book", id),
+    getChaptersByBook: (bookId) => ipcRenderer.invoke("get-chapters-by-book", bookId),
+    getVersesByChapter: (bookId, chapterNumber) => ipcRenderer.invoke("get-verses-by-chapter", { bookId, chapterNumber }),
+    searchBible: (query) => ipcRenderer.invoke("search-bible", query),
+    getBibleVerse: (bookId, chapter, verse) => ipcRenderer.invoke("get-bible-verse", { bookId, chapter, verse }),
+    getBibleVerseCount: () => ipcRenderer.invoke("get-bible-verse-count"),
 });

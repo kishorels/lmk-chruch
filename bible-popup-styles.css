@@ -1,0 +1,318 @@
+/* Bible Content with Popup */
+.bible-content {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.bible-books-with-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.bible-book-popup-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.bible-book-popup-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--gradient-primary);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.bible-book-popup-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(110, 122, 255, 0.3);
+    transform: translateX(4px);
+}
+
+.bible-book-popup-item:hover::before {
+    opacity: 1;
+}
+
+.bible-book-popup-item.active {
+    background: var(--gradient-glow);
+    border-color: rgba(110, 122, 255, 0.5);
+    box-shadow: 0 4px 15px rgba(110, 122, 255, 0.25);
+}
+
+.bible-book-popup-item.active::before {
+    opacity: 1;
+}
+
+.book-popup-number {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 6px 10px;
+    border-radius: 6px;
+    min-width: 36px;
+    text-align: center;
+}
+
+.bible-book-popup-item.active .book-popup-number {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+.book-popup-info {
+    flex: 1;
+}
+
+.book-popup-tamil {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+    font-family: 'Inter', 'Noto Sans Tamil', sans-serif;
+}
+
+.book-popup-english {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.bible-book-popup-item.active .book-popup-tamil,
+.bible-book-popup-item.active .book-popup-english {
+    color: white;
+}
+
+/* Chapter & Verse Popup */
+.chapter-verse-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(13, 13, 33, 0.98);
+    backdrop-filter: blur(50px);
+    border: 1px solid rgba(110, 122, 255, 0.3);
+    border-radius: var(--radius-lg);
+    padding: 0;
+    width: 90%;
+    max-width: 900px;
+    max-height: 80vh;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 0 40px rgba(110, 122, 255, 0.4);
+    z-index: 2000;
+    animation: popupFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes popupFadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.popup-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    font-family: 'Inter', 'Noto Sans Tamil', sans-serif;
+}
+
+.popup-close {
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    transition: all 0.2s ease;
+}
+
+.popup-close:hover {
+    background: rgba(255, 49, 127, 0.2);
+    border-color: rgba(255, 49, 127, 0.5);
+    color: #ff317f;
+}
+
+.popup-two-columns {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 0;
+    flex: 1;
+    overflow: hidden;
+}
+
+.popup-chapters-section,
+.popup-verses-section {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.popup-chapters-section {
+    border-right: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.popup-section-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: 'Inter', 'Noto Sans Tamil', sans-serif;
+}
+
+.popup-chapters-grid,
+.popup-verses-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: grid;
+    gap: 8px;
+}
+
+.popup-chapters-grid {
+    grid-template-columns: repeat(auto-fill, minmax(55px, 1fr));
+}
+
+.popup-verses-grid {
+    grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+}
+
+.popup-chapter-btn,
+.popup-verse-btn {
+    aspect-ratio: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.popup-chapter-btn::before,
+.popup-verse-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gradient-primary);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    border-radius: var(--radius-md);
+}
+
+.popup-chapter-btn:hover,
+.popup-verse-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(110, 122, 255, 0.5);
+    transform: scale(1.12);
+}
+
+.popup-chapter-btn:hover::before,
+.popup-verse-btn:hover::before {
+    opacity: 0.2;
+}
+
+.popup-chapter-btn.active,
+.popup-verse-btn.active {
+    background: var(--gradient-primary);
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 4px 15px rgba(110, 122, 255, 0.5);
+    transform: scale(1.12);
+}
+
+.popup-chapter-btn.active::before,
+.popup-verse-btn.active::before {
+    opacity: 1;
+}
+
+.popup-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    gap: 12px;
+}
+
+.popup-empty-icon {
+    font-size: 3.5rem;
+    opacity: 0.3;
+}
+
+.popup-empty-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-family: 'Inter', 'Noto Sans Tamil', sans-serif;
+}
+
+/* Scrollbars for popup */
+.popup-chapters-grid::-webkit-scrollbar,
+.popup-verses-grid::-webkit-scrollbar {
+    width: 6px;
+}
+
+.popup-chapters-grid::-webkit-scrollbar-track,
+.popup-verses-grid::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 3px;
+}
+
+.popup-chapters-grid::-webkit-scrollbar-thumb,
+.popup-verses-grid::-webkit-scrollbar-thumb {
+    background: var(--gradient-primary);
+    border-radius: 3px;
+}
+
+.popup-chapters-grid::-webkit-scrollbar-thumb:hover,
+.popup-verses-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-purple);
+}

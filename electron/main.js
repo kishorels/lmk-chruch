@@ -1,7 +1,9 @@
 const { app, BrowserWindow, ipcMain, screen, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const https = require("https");
 const db = require("./database");
+const bibleDb = require("./bible-db");
 
 let mainWindow;
 let presentationWindow;
@@ -38,6 +40,115 @@ function fileToDataUrl(filePath) {
     const buffer = fs.readFileSync(filePath);
     const base64 = buffer.toString('base64');
     return `data:${mimeType};base64,${base64}`;
+}
+
+// Fetch JSON from URL
+function fetchJson(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                try {
+                    resolve(JSON.parse(data));
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }).on('error', reject);
+    });
+}
+
+// Populate Bible data
+async function populateBible() {
+    try {
+        // Check if already populated - should have at least 31000 verses for complete Tamil Bible
+        const verseCount = db.getBibleVerseCount();
+        const books = db.getAllBibleBooks();
+
+        console.log(`Bible check: ${books.length} books, ${verseCount} verses`);
+
+        if (verseCount > 30000) {
+            console.log('Bible data already complete, skipping population.');
+            return;
+        }
+
+        // If we have books but no/incomplete verses, clear and start fresh
+        if (books.length > 0 && verseCount < 30000) {
+            console.log('Bible data incomplete, clearing and re-downloading...');
+            db.clearBibleData();
+        }
+
+        console.log('Populating Bible data from GitHub...');
+
+        // Fetch books list
+        const booksData = await fetchJson('https://raw.githubusercontent.com/aruljohn/Bible-tamil/master/Books.json');
+        console.log(`Found ${booksData.length} books to download.`);
+
+        for (let i = 0; i < booksData.length; i++) {
+            const bookItem = booksData[i];
+            try {
+                const book = db.createBibleBook({
+                    english_name: bookItem.book.english,
+                    tamil_name: bookItem.book.tamil.trim()
+                });
+
+                console.log(`[${i + 1}/${booksData.length}] Downloading: ${bookItem.book.english} (${bookItem.book.tamil.trim()})`);
+
+                // Fetch book content
+                const bookFileName = `${bookItem.book.english}.json`;
+                const bookUrl = `https://raw.githubusercontent.com/aruljohn/Bible-tamil/master/${encodeURIComponent(bookFileName)}`;
+                const bookData = await fetchJson(bookUrl);
+
+                // The JSON format has chapters as an array inside bookData.chapters
+                if (bookData.chapters && Array.isArray(bookData.chapters)) {
+                    // New format: { book: {...}, chapters: [ { chapter: "1", verses: [...] }, ... ] }
+                    for (const chapterData of bookData.chapters) {
+                        const chapter = db.createBibleChapter({
+                            book_id: book.id,
+                            chapter_number: parseInt(chapterData.chapter)
+                        });
+
+                        if (chapterData.verses && Array.isArray(chapterData.verses)) {
+                            for (const verseData of chapterData.verses) {
+                                db.createBibleVerse({
+                                    chapter_id: chapter.id,
+                                    verse_number: parseInt(verseData.verse),
+                                    content: verseData.text
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    // Old format fallback: { "1": { "1": "verse text", ... }, ... }
+                    for (const [chapterNum, verses] of Object.entries(bookData)) {
+                        if (chapterNum === 'book' || chapterNum === 'count') continue; // Skip metadata
+
+                        const chapter = db.createBibleChapter({
+                            book_id: book.id,
+                            chapter_number: parseInt(chapterNum)
+                        });
+
+                        if (typeof verses === 'object') {
+                            for (const [verseNum, content] of Object.entries(verses)) {
+                                db.createBibleVerse({
+                                    chapter_id: chapter.id,
+                                    verse_number: parseInt(verseNum),
+                                    content: content
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch (bookError) {
+                console.error(`Failed to populate book ${bookItem.book.english}:`, bookError.message);
+            }
+        }
+
+        console.log('✓ Bible data populated successfully!');
+    } catch (error) {
+        console.error('Failed to populate Bible data:', error.message);
+    }
 }
 
 function createMainWindow() {
@@ -89,9 +200,18 @@ function createPresentationWindow() {
 }
 
 // Initialize database and media directory
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     ensureMediaDir();
     db.initializeDatabase();
+
+    // Initialize the local Tamil Bible database
+    const bibleLoaded = bibleDb.initBibleDatabase();
+    if (bibleLoaded) {
+        console.log('✓ Tamil Bible database ready with', bibleDb.getBibleVerseCount(), 'verses');
+    } else {
+        console.warn('⚠ Tamil Bible database not available');
+    }
+
     createMainWindow();
 });
 
@@ -327,4 +447,34 @@ ipcMain.handle("update-verse", (event, { id, verse }) => {
 
 ipcMain.handle("delete-verse", (event, id) => {
     return db.deleteVerse(id);
+});
+
+// Bible - using local Tamil Bible SQLite database
+ipcMain.handle("get-all-bible-books", () => {
+    return bibleDb.getAllBibleBooks();
+});
+
+ipcMain.handle("get-bible-book", (event, id) => {
+    const books = bibleDb.getAllBibleBooks();
+    return books.find(b => b.id === id) || null;
+});
+
+ipcMain.handle("get-chapters-by-book", (event, bookId) => {
+    return bibleDb.getChaptersByBook(bookId);
+});
+
+ipcMain.handle("get-verses-by-chapter", (event, { bookId, chapterNumber }) => {
+    return bibleDb.getVersesByChapter(bookId, chapterNumber);
+});
+
+ipcMain.handle("search-bible", (event, query) => {
+    return bibleDb.searchBible(query);
+});
+
+ipcMain.handle("get-bible-verse", (event, { bookId, chapter, verse }) => {
+    return bibleDb.getVerse(bookId, chapter, verse);
+});
+
+ipcMain.handle("get-bible-verse-count", () => {
+    return bibleDb.getBibleVerseCount();
 });

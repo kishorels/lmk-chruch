@@ -5,6 +5,8 @@ const { app } = require('electron');
 // Database path in user data directory
 const dbPath = path.join(app.getPath('userData'), 'lmk-church.db');
 const db = new Database(dbPath);
+db.exec('PRAGMA foreign_keys = ON');
+
 
 // Initialize database tables
 function initializeDatabase() {
@@ -41,7 +43,7 @@ function initializeDatabase() {
       category TEXT DEFAULT 'Worship',
       template_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (template_id) REFERENCES templates(id)
+      FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL
     )
   `);
 
@@ -66,6 +68,37 @@ function initializeDatabase() {
       file_path TEXT NOT NULL,
       thumbnail_path TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Bible tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bible_books (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      english_name TEXT NOT NULL,
+      tamil_name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bible_chapters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      book_id INTEGER NOT NULL,
+      chapter_number INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (book_id) REFERENCES bible_books(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bible_verses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chapter_id INTEGER NOT NULL,
+      verse_number INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (chapter_id) REFERENCES bible_chapters(id) ON DELETE CASCADE
     )
   `);
 
@@ -163,7 +196,13 @@ function updateTemplate(id, template) {
 }
 
 function deleteTemplate(id) {
-  db.prepare('DELETE FROM templates WHERE id = ?').run(id);
+  const deleteTx = db.transaction((id) => {
+    // Set template_id to NULL for any songs using this template
+    db.prepare('UPDATE songs SET template_id = NULL WHERE template_id = ?').run(id);
+    // Now delete the template
+    db.prepare('DELETE FROM templates WHERE id = ?').run(id);
+  });
+  deleteTx(id);
 }
 
 // CRUD Operations for Songs
@@ -274,6 +313,54 @@ function deleteMedia(id) {
   db.prepare('DELETE FROM media WHERE id = ?').run(id);
 }
 
+// Bible Operations
+function getAllBibleBooks() {
+  return db.prepare('SELECT * FROM bible_books ORDER BY id').all();
+}
+
+function getBibleVerseCount() {
+  const result = db.prepare('SELECT COUNT(*) as count FROM bible_verses').get();
+  return result.count;
+}
+
+function getBibleBookById(id) {
+  return db.prepare('SELECT * FROM bible_books WHERE id = ?').get(id);
+}
+
+function getChaptersByBook(bookId) {
+  return db.prepare('SELECT * FROM bible_chapters WHERE book_id = ? ORDER BY chapter_number').all(bookId);
+}
+
+function getVersesByChapter(chapterId) {
+  return db.prepare('SELECT * FROM bible_verses WHERE chapter_id = ? ORDER BY verse_number').all(chapterId);
+}
+
+function createBibleBook(book) {
+  const stmt = db.prepare('INSERT INTO bible_books (english_name, tamil_name) VALUES (?, ?)');
+  const result = stmt.run(book.english_name, book.tamil_name);
+  return { id: result.lastInsertRowid, ...book };
+}
+
+function createBibleChapter(chapter) {
+  const stmt = db.prepare('INSERT INTO bible_chapters (book_id, chapter_number) VALUES (?, ?)');
+  const result = stmt.run(chapter.book_id, chapter.chapter_number);
+  return { id: result.lastInsertRowid, ...chapter };
+}
+
+function createBibleVerse(verse) {
+  const stmt = db.prepare('INSERT INTO bible_verses (chapter_id, verse_number, content) VALUES (?, ?, ?)');
+  const result = stmt.run(verse.chapter_id, verse.verse_number, verse.content);
+  return { id: result.lastInsertRowid, ...verse };
+}
+
+// Clear all Bible data (for re-downloading)
+function clearBibleData() {
+  db.prepare('DELETE FROM bible_verses').run();
+  db.prepare('DELETE FROM bible_chapters').run();
+  db.prepare('DELETE FROM bible_books').run();
+  console.log('Bible data cleared');
+}
+
 module.exports = {
   initializeDatabase,
   // Templates
@@ -299,5 +386,15 @@ module.exports = {
   getAllMedia,
   getMediaByType,
   addMedia,
-  deleteMedia
+  deleteMedia,
+  // Bible
+  getAllBibleBooks,
+  getBibleBookById,
+  getBibleVerseCount,
+  getChaptersByBook,
+  getVersesByChapter,
+  createBibleBook,
+  createBibleChapter,
+  createBibleVerse,
+  clearBibleData
 };

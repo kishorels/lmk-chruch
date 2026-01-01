@@ -36,6 +36,18 @@ export default function App() {
     const [isLive, setIsLive] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
 
+    // Bible state
+    const [bibleBooks, setBibleBooks] = useState([]);
+    const [selectedBook, setSelectedBook] = useState(null);
+    const [selectedChapter, setSelectedChapter] = useState(null);
+    const [hoveredChapter, setHoveredChapter] = useState(null);
+    const [bibleVerses, setBibleVerses] = useState([]);
+    const [selectedBibleVerse, setSelectedBibleVerse] = useState(null);
+    const [bibleSearchQuery, setBibleSearchQuery] = useState("");
+    const [bibleSearchResults, setBibleSearchResults] = useState([]);
+    const [testamentFilter, setTestamentFilter] = useState("all"); // 'all', 'OT', 'NT'
+    const [bibleViewMode, setBibleViewMode] = useState("books"); // 'books', 'search'
+
     // Modal states
     const [showAddSongModal, setShowAddSongModal] = useState(false);
     const [showAddTemplateModal, setShowAddTemplateModal] = useState(false);
@@ -58,6 +70,7 @@ export default function App() {
         loadSongs();
         loadTemplates();
         loadMediaLibrary();
+        loadBibleBooks();
     }, []);
 
     const loadSongs = async () => {
@@ -90,6 +103,30 @@ export default function App() {
         }
     };
 
+    const loadBibleBooks = async () => {
+        try {
+            const books = await window.electronAPI.getAllBibleBooks();
+            console.log('Loaded Bible books:', books.length);
+            setBibleBooks(books);
+        } catch (error) {
+            console.error('Failed to load Bible books:', error);
+        }
+    };
+
+    // Search Bible
+    const searchBible = async (query) => {
+        if (!query.trim()) {
+            setBibleSearchResults([]);
+            return;
+        }
+        try {
+            const results = await window.electronAPI.searchBible(query);
+            setBibleSearchResults(results);
+        } catch (error) {
+            console.error('Failed to search Bible:', error);
+        }
+    };
+
     const selectSong = async (song) => {
         try {
             const songWithVerses = await window.electronAPI.getSongWithVerses(song.id);
@@ -111,6 +148,70 @@ export default function App() {
         setSelectedVerse(verse);
         setSelectedVerseIndex(index);
     };
+
+    const selectBook = async (book) => {
+        setSelectedBook(book);
+        setSelectedChapter(null);
+        setHoveredChapter(null);
+        setBibleVerses([]);
+        setSelectedBibleVerse(null);
+        // Load chapters
+        try {
+            const chapters = await window.electronAPI.getChaptersByBook(book.id);
+            setSelectedBook({ ...book, chapters });
+        } catch (error) {
+            console.error('Failed to load chapters:', error);
+        }
+    };
+
+    const loadVersesForChapter = async (chapter) => {
+        try {
+            const verses = await window.electronAPI.getVersesByChapter(selectedBook.id, chapter.chapter_number);
+            setBibleVerses(verses);
+        } catch (error) {
+            console.error('Failed to load verses:', error);
+        }
+    };
+
+    const selectChapter = async (chapter) => {
+        setSelectedChapter(chapter);
+        setSelectedBibleVerse(null);
+        setHoveredChapter(null);
+        loadVersesForChapter(chapter);
+    };
+
+    const handleChapterHover = (chapter) => {
+        setHoveredChapter(chapter);
+        loadVersesForChapter(chapter);
+    };
+
+    const handleChapterLeave = () => {
+        setHoveredChapter(null);
+    };
+
+    const selectBibleVerse = (verse, bookName = null, chapterNum = null) => {
+        setSelectedBibleVerse(verse);
+        // Create reference text for presentation
+        const reference = bookName && chapterNum
+            ? `${bookName} ${chapterNum}:${verse.verse_number}`
+            : selectedBook && selectedChapter
+                ? `${selectedBook.tamil_name} ${selectedChapter.chapter_number}:${verse.verse_number}`
+                : '';
+        // Set as selectedVerse for presentation with reference
+        setSelectedVerse({
+            content: verse.content,
+            id: verse.id,
+            verse_number: verse.verse_number,
+            reference: reference
+        });
+        setSelectedVerseIndex(-1); // Not used for Bible
+    };
+
+    // Filter books by testament
+    const filteredBibleBooks = bibleBooks.filter(book => {
+        if (testamentFilter === 'all') return true;
+        return book.testament === testamentFilter;
+    });
 
     const goToPresentation = () => {
         if (!selectedVerse) return;
@@ -492,7 +593,18 @@ export default function App() {
                                                 <div className="song-title">{song.title}</div>
                                                 <div className="song-author">{song.author || 'Unknown'}</div>
                                             </div>
-                                            <span className="song-category">{song.category}</span>
+                                            <div className="song-item-right">
+                                                <span className="song-category">{song.category}</span>
+                                                <button
+                                                    className="delete-btn-small"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteSong(song.id);
+                                                    }}
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </div>
                                         </div>
                                     ))
                                 )}
@@ -517,11 +629,197 @@ export default function App() {
                     )}
 
                     {activeTab === "bible" && (
-                        <div className="bible-panel">
-                            <div className="empty-state">
-                                <div className="empty-state-icon">📖</div>
-                                <div className="empty-state-text">Bible feature coming soon</div>
+                        <div className="bible-panel-redesign">
+                            {/* Bible Header with Search */}
+                            <div className="bible-header">
+                                <div className="bible-search-container">
+                                    <span className="bible-search-icon">🔍</span>
+                                    <input
+                                        type="text"
+                                        className="bible-search-input"
+                                        placeholder="வசன தேடல் / Search verses..."
+                                        value={bibleSearchQuery}
+                                        onChange={(e) => {
+                                            setBibleSearchQuery(e.target.value);
+                                            if (e.target.value.length >= 2) {
+                                                searchBible(e.target.value);
+                                                setBibleViewMode('search');
+                                            } else {
+                                                setBibleSearchResults([]);
+                                                setBibleViewMode('books');
+                                            }
+                                        }}
+                                    />
+                                    {bibleSearchQuery && (
+                                        <button
+                                            className="bible-search-clear"
+                                            onClick={() => {
+                                                setBibleSearchQuery('');
+                                                setBibleSearchResults([]);
+                                                setBibleViewMode('books');
+                                            }}
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Testament Tabs */}
+                                <div className="testament-tabs">
+                                    <button
+                                        className={`testament-tab ${testamentFilter === 'all' ? 'active' : ''}`}
+                                        onClick={() => setTestamentFilter('all')}
+                                    >
+                                        <span className="testament-icon">📖</span>
+                                        அனைத்தும்
+                                    </button>
+                                    <button
+                                        className={`testament-tab ${testamentFilter === 'OT' ? 'active' : ''}`}
+                                        onClick={() => setTestamentFilter('OT')}
+                                    >
+                                        <span className="testament-icon">📜</span>
+                                        பழைய ஏற்பாடு
+                                    </button>
+                                    <button
+                                        className={`testament-tab ${testamentFilter === 'NT' ? 'active' : ''}`}
+                                        onClick={() => setTestamentFilter('NT')}
+                                    >
+                                        <span className="testament-icon">✝️</span>
+                                        புதிய ஏற்பாடு
+                                    </button>
+                                </div>
                             </div>
+
+                            {/* Search Results View */}
+                            {bibleViewMode === 'search' && bibleSearchResults.length > 0 && (
+                                <div className="bible-search-results">
+                                    <div className="search-results-header">
+                                        <span className="search-results-count">{bibleSearchResults.length} results found</span>
+                                    </div>
+                                    <div className="search-results-list">
+                                        {bibleSearchResults.map((result, index) => (
+                                            <div
+                                                key={index}
+                                                className={`search-result-item ${selectedBibleVerse?.id === result.id ? 'active' : ''}`}
+                                                onClick={() => selectBibleVerse({
+                                                    id: `${result.book}_${result.chapter}_${result.verse_number}`,
+                                                    verse_number: result.verse_number,
+                                                    content: result.content
+                                                }, `Book ${result.book}`, result.chapter)}
+                                            >
+                                                <div className="search-result-ref">
+                                                    Book {result.book} : {result.chapter}:{result.verse_number}
+                                                </div>
+                                                <div className="search-result-text">{result.content}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Single Column with Popup */}
+                            {bibleViewMode === 'books' && (
+                                <>
+                                    {bibleBooks.length === 0 ? (
+                                        <div className="bible-loading-state">
+                                            <div className="bible-loading-icon">📖</div>
+                                            <div className="bible-loading-text">Loading Tamil Bible...</div>
+                                            <div className="bible-loading-spinner"></div>
+                                        </div>
+                                    ) : (
+                                        <div className="bible-content">
+                                            <div className="bible-books-with-popup">
+                                                {filteredBibleBooks.map((book) => (
+                                                    <div
+                                                        key={book.id}
+                                                        className={`bible-book-popup-item ${selectedBook?.id === book.id ? 'active' : ''} ${book.testament === 'OT' ? 'ot' : 'nt'}`}
+                                                        onClick={() => selectBook(book)}
+                                                    >
+                                                        <div className="book-popup-number">{book.id}</div>
+                                                        <div className="book-popup-info">
+                                                            <div className="book-popup-tamil">{book.tamil_name}</div>
+                                                            <div className="book-popup-english">{book.english_name}</div>
+                                                        </div>
+
+                                                        {/* Chapter & Verse Popup */}
+                                                        {selectedBook?.id === book.id && book.chapters && (
+                                                            <div className="chapter-verse-popup">
+                                                                <div className="popup-header">
+                                                                    <span className="popup-title">{book.tamil_name}</span>
+                                                                    <button
+                                                                        className="popup-close"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSelectedBook(null);
+                                                                            setSelectedChapter(null);
+                                                                            setHoveredChapter(null);
+                                                                            setBibleVerses([]);
+                                                                        }}
+                                                                    >✕</button>
+                                                                </div>
+
+                                                                {/* Two Column inside Popup: Chapters | Verses */}
+                                                                <div className="popup-two-columns">
+                                                                    {/* Chapters List */}
+                                                                    <div className="popup-chapters-section">
+                                                                        <div className="popup-section-title">அதிகாரங்கள்</div>
+                                                                        <div className="popup-chapters-grid">
+                                                                            {book.chapters.map((chapter) => (
+                                                                                <button
+                                                                                    key={chapter.id}
+                                                                                    className={`popup-chapter-btn ${selectedChapter?.chapter_number === chapter.chapter_number ? 'active' : ''}`}
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        selectChapter(chapter);
+                                                                                    }}
+                                                                                    onMouseEnter={() => handleChapterHover(chapter)}
+                                                                                    onMouseLeave={handleChapterLeave}
+                                                                                >
+                                                                                    <span className="chapter-btn-label">அதி</span>
+                                                                                    <span className="chapter-btn-number">{chapter.chapter_number}</span>
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Verses Grid */}
+                                                                    <div className="popup-verses-section">
+                                                                        <div className="popup-section-title">
+                                                                            {selectedChapter ? `வசனங்கள் ${selectedChapter.chapter_number}` : hoveredChapter ? `வசனங்கள் ${hoveredChapter.chapter_number}` : 'வசனங்கள்'}
+                                                                        </div>
+                                                                        {bibleVerses.length > 0 ? (
+                                                                            <div className="popup-verses-grid">
+                                                                                {bibleVerses.map((verse) => (
+                                                                                    <button
+                                                                                        key={verse.id}
+                                                                                        className={`popup-verse-btn ${selectedBibleVerse?.id === verse.id ? 'active' : ''}`}
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            selectBibleVerse(verse);
+                                                                                        }}
+                                                                                        title={verse.content}
+                                                                                    >
+                                                                                        {verse.verse_number}
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="popup-empty">
+                                                                                <div className="popup-empty-icon">📑</div>
+                                                                                <div className="popup-empty-text">அதிகாரத்தைத் தேர்ந்தெடுக்கவும்</div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
                     )}
 
